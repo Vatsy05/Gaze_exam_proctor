@@ -15,10 +15,7 @@ THRESH_SECONDS = 2.5
 VIDEO_BUFFER_SECONDS = 5.0
 FPS_ASSUMED = 20
 
-MULTI_FACE_MIN_FRAMES = 8
-MULTI_FACE_COOLDOWN_S = 10
-
-FLASH_DURATION = 15  # frames (~0.5s at 30fps)
+FLASH_DURATION = 15  # frames (~0.5s)
 
 LOG_DIR = "events"
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -28,16 +25,21 @@ with open(LABELS_FILE) as f:
     LABELS = [l.strip() for l in f if l.strip()]
 
 LOOKING_CENTER = "center"
-AWAY_SET = set([l for l in LABELS if l not in [LOOKING_CENTER, "closed"]])
 
 # ----------- MediaPipe -----------
 mp_face_mesh = mp.solutions.face_mesh
+mp_face_detection = mp.solutions.face_detection
+
 face_mesh = mp_face_mesh.FaceMesh(
     static_image_mode=False,
-    max_num_faces=5,
+    max_num_faces=1,  # we only track main face for gaze
     refine_landmarks=True,
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5
+)
+
+face_detection = mp_face_detection.FaceDetection(
+    model_selection=0, min_detection_confidence=0.5
 )
 
 # Eye landmark indices
@@ -111,9 +113,6 @@ def main():
     away_start = None
     event_armed = True
 
-    multi_face_count = 0
-    last_multi_face_time = 0.0
-
     flash_counter = 0
     flash_text = ""
 
@@ -123,32 +122,29 @@ def main():
             break
 
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        res = face_mesh.process(rgb)
-        faces = res.multi_face_landmarks if res and res.multi_face_landmarks else []
-        face_num = len(faces)
+
+        # -------- Face detection (for counting faces) --------
+        res_det = face_detection.process(rgb)
+        face_num = len(res_det.detections) if res_det.detections else 0
 
         cv2.putText(frame, f"faces: {face_num}", (10,60),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (180,180,180), 2)
 
-        now = time.time()
+        # Multi-face warning
+        if face_num > 1:
+            flash_counter = FLASH_DURATION
+            flash_text = "MULTIPLE FACES DETECTED!"
+            save_evidence(list(video_buf), "multiple_faces", fps)
+
+        # -------- FaceMesh (for main face gaze) --------
+        res_mesh = face_mesh.process(rgb)
+        faces_mesh = res_mesh.multi_face_landmarks if res_mesh and res_mesh.multi_face_landmarks else []
+        
         label_disp = "no_face"
         conf_disp = 0.0
 
-        # -------- Multi-face detection --------
-        if face_num > 1:
-            multi_face_count += 1
-            if (multi_face_count >= MULTI_FACE_MIN_FRAMES) and (now - last_multi_face_time >= MULTI_FACE_COOLDOWN_S):
-                flash_counter = FLASH_DURATION
-                flash_text = "MULTIPLE FACES DETECTED!"
-                save_evidence(list(video_buf), "multiple_faces", fps)
-                last_multi_face_time = now
-                multi_face_count = 0
-        else:
-            multi_face_count = 0
-
-        # -------- Gaze detection (only 1 face) --------
-        if face_num == 1:
-            lm = faces[0].landmark
+        if len(faces_mesh) == 1:  # only use first face
+            lm = faces_mesh[0].landmark
             eyes = crop_eyes(frame, lm)
             if eyes:
                 L, R = eyes
@@ -170,11 +166,12 @@ def main():
 
                 label_disp, conf_disp = disp_class, conf
 
-                # --- Eye thumbnails (top-left) ---
+                # Eye thumbnails
                 hE, wE = L.shape[:2]
                 frame[5:5+hE, 5:5+wE] = L
                 frame[5:5+hE, 10+wE:10+2*wE] = R
 
+                # Sustained away
                 if disp_class == "away":
                     if away_start is None:
                         away_start = time.time()
@@ -192,12 +189,12 @@ def main():
         else:
             pred_buf.clear(); away_start=None; event_armed=True
 
-        # -------- Overlay status --------
+        # -------- Overlay label --------
         cv2.putText(frame, f"{label_disp} ({conf_disp:.2f})", (10,30),
                     cv2.FONT_HERSHEY_SIMPLEX, 1,
                     (0,255,0) if label_disp=="center" else (0,255,255), 2)
 
-        # -------- Red flash handling --------
+        # -------- Red flash --------
         if flash_counter > 0:
             frame = add_red_flash(frame, flash_text)
             flash_counter -= 1
