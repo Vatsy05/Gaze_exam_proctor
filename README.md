@@ -80,27 +80,29 @@ Exam_Proctor/
 └── events/ # Logs + MP4 evidence of suspicious events
 
 
+
 ---
 
 ## 🔄 System Pipeline
 
 ```mermaid
 flowchart LR
-    A[Webcam Feed] --> B[MediaPipe Face Mesh]
-    B --> C[Eye Crop + Preprocessing]
-    C --> D[CNN Gaze Classifier]
-    D -->|Center| E1[Normal State]
-    D -->|Away| E2[Flag Away]
-    D -->|Closed| E3[Closed Eye Timeout Check]
+    A[Webcam Feed] --> B(MediaPipe Face Mesh)
+    B --> C(Eye Crop + Preprocessing)
+    C --> D(CNN Gaze Classifier)
+    D -->|Center| E1(Normal State)
+    D -->|Away| E2(Flag Away)
+    D -->|Closed| E3(Closed Eye Timeout Check)
 
-    B --> F[Face Detection (Multi-Face)]
-    F -->|>1 Face| E4[Flag Multiple Faces]
+    B --> F(Face Detection - Multi-Face)
+    F -->|More than 1 Face| E4(Flag Multiple Faces)
 
     E2 --> G[Red Flash + Log Event]
     E3 --> G
     E4 --> G
 
     G --> H[Save MP4 Evidence + events.log]
+
 
 ##📊 Current Capabilities
 
