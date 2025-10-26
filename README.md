@@ -69,15 +69,18 @@ Built with **TensorFlow, OpenCV, and MediaPipe**, the project demonstrates how d
 
 ## 📂 Project Structure
 
+```
 Exam_Proctor/
-├── scripts/ # Dataset capture & preprocessing scripts
-├── raw_images/ # Personal + open dataset images
-├── processed/ # Preprocessed eye crops ready for training
-├── model_train.py # CNN training script
-├── infer_realtime.py # Real-time proctoring system
-├── requirements.txt # Dependencies
-├── README.md # Project documentation
-└── events/ # Logs + MP4 evidence of suspicious events
+├── scripts/                # Dataset capture & preprocessing scripts
+├── raw_images/             # Personal + open dataset images
+├── processed/              # Preprocessed eye crops ready for training
+├── model_train.py          # CNN training script
+├── infer_realtime.py       # Real-time proctoring system
+├── requirements.txt        # Dependencies
+├── README.md               # Project documentation
+└── events/                 # Logs + MP4 evidence of suspicious events
+```
+
 
 
 
@@ -85,44 +88,45 @@ Exam_Proctor/
 
 ## 🔄 System Pipeline
 
+## 🔄 System Pipeline
+
 ```mermaid
-flowchart LR
+flowchart TD
     A[Webcam Feed] --> B(MediaPipe Face Mesh)
     B --> C(Eye Crop + Preprocessing)
     C --> D(CNN Gaze Classifier)
-    D -->|Center| E1(Normal State)
-    D -->|Away| E2(Flag Away)
-    D -->|Closed| E3(Closed Eye Timeout Check)
+    D -->|Center| E1[Normal State]
+    D -->|Away| E2[Flag Away]
+    D -->|Closed| E3[Closed Eye Timeout Check]
 
     B --> F(Face Detection - Multi-Face)
-    F -->|More than 1 Face| E4(Flag Multiple Faces)
+    F -->|More than 1 Face| E4[Flag Multiple Faces]
 
     E2 --> G[Red Flash + Log Event]
     E3 --> G
     E4 --> G
 
     G --> H[Save MP4 Evidence + events.log]
+```
+---
 
+## 📊 Current Capabilities
 
-##📊 Current Capabilities
-
-✅ Eye gaze classification (center / away / closed)
-✅ Temporal smoothing for stable predictions
-✅ Closed-eyes timeout detection (>5s)
-✅ Multi-face detection with warnings
-✅ Red flash overlay warnings for violations
-✅ Evidence logging (event log + MP4 clips)
+- ✅ Eye gaze classification (center / away / closed)  
+- ✅ Temporal smoothing for stable predictions  
+- ✅ Closed-eyes timeout detection (>5s)  
+- ✅ Multi-face detection with warnings  
+- ✅ Red flash overlay warnings for violations  
+- ✅ Evidence logging (event log + MP4 clips)  
 
 ---
 
-##🔮 Planned Improvements
+## 🔮 Planned Improvements
 
-Audio Monitoring → detect background voices or conversations.
+- ⬜ Audio Monitoring → detect background voices or conversations  
+- ⬜ Dataset Expansion → integrate more open datasets to improve CNN generalization  
+- ⬜ Cheat Behavior Scenarios → add detection for mobile phone usage, frequent head tilting, etc.  
+- ⬜ Instructor Dashboard → centralized log and video review system  
+- ⬜ Optional Cloud Sync → store violations securely for remote review  
 
-Dataset Expansion → integrate more open datasets to improve CNN generalization.
-
-Cheat Behavior Scenarios → add detection for mobile phone usage, frequent head tilting, etc.
-
-Instructor Dashboard → centralized log and video review system.
-
-Optional Cloud Sync → store violations securely for remote review.
+---
