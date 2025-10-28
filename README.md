@@ -1,9 +1,9 @@
 # Exam Gaze Proctor 👀
 
 **Exam Gaze Proctor** is an AI-powered system designed to monitor students during online exams.  
-It uses **eye gaze tracking** and **face detection** to flag potentially suspicious behaviors such as looking away from the screen, keeping eyes closed for too long, or the presence of multiple people.  
+It uses **eye gaze tracking**, **face detection**, and **audio monitoring** to flag potentially suspicious behaviors such as looking away from the screen, keeping eyes closed for too long, the presence of multiple people, or background conversations.  
 
-Built with **TensorFlow, OpenCV, and MediaPipe**, the project demonstrates how deep learning and computer vision can be applied to real-world proctoring scenarios.
+Built with **TensorFlow, OpenCV, MediaPipe, and SoundDevice**, the project demonstrates how deep learning and computer vision can be applied to real-world proctoring scenarios.
 
 ---
 
@@ -39,11 +39,22 @@ Built with **TensorFlow, OpenCV, and MediaPipe**, the project demonstrates how d
 
 ---
 
+### 🔹 Audio Monitoring
+- Continuously listens through the microphone for **speech or background voices**.  
+- If **sustained voice activity** is detected:  
+  - Red warning overlay is displayed (*VOICE DETECTED!*).  
+  - Event is logged in `events/events.log`.  
+  - A short `.wav` audio clip (~5 seconds) is saved as evidence.  
+- Prevents students from discussing answers out loud or receiving verbal help.
+
+---
+
 ### 🔹 Real-Time Warnings
 - During suspicious activity, the student’s screen flashes **red** with a bold warning message:  
   - *LOOKING AWAY!*  
   - *MULTIPLE FACES DETECTED!*  
   - *EYES CLOSED TOO LONG!*  
+  - *VOICE DETECTED!*  
 - Provides **instant feedback** to discourage further misconduct.  
 
 ---
@@ -52,7 +63,7 @@ Built with **TensorFlow, OpenCV, and MediaPipe**, the project demonstrates how d
 - Every suspicious event is logged in the `events/` folder.  
 - **Two types of evidence are saved:**  
   1. A line in `events.log` with the timestamp and event type.  
-  2. A short **.mp4 video clip** of the violation (5 seconds leading up to the event).  
+  2. A short **.mp4 video clip** or **.wav audio clip** of the violation.  
 - Ensures instructors can review exactly what happened later.
 
 ---
@@ -81,12 +92,7 @@ Exam_Proctor/
 └── events/                 # Logs + MP4 evidence of suspicious events
 ```
 
-
-
-
 ---
-
-## 🔄 System Pipeline
 
 ## 🔄 System Pipeline
 
@@ -102,31 +108,49 @@ flowchart TD
     B --> F(Face Detection - Multi-Face)
     F -->|More than 1 Face| E4[Flag Multiple Faces]
 
+    H[Microphone Audio] --> I(Audio Monitor)
+    I -->|Voice Detected| E5[Flag Audio Activity]
+
     E2 --> G[Red Flash + Log Event]
     E3 --> G
     E4 --> G
+    E5 --> G
 
-    G --> H[Save MP4 Evidence + events.log]
+    G --> H2[Save MP4/WAV Evidence + events.log]
 ```
 ---
 
 ## 📊 Current Capabilities
 
-- ✅ Eye gaze classification (center / away / closed)  
-- ✅ Temporal smoothing for stable predictions  
-- ✅ Closed-eyes timeout detection (>5s)  
-- ✅ Multi-face detection with warnings  
-- ✅ Red flash overlay warnings for violations  
-- ✅ Evidence logging (event log + MP4 clips)  
+✅ Eye gaze classification (center / away / closed)
+
+✅ Temporal smoothing for stable predictions
+
+✅ Closed-eyes timeout detection (>5s)
+
+✅ Multi-face detection with warnings
+
+✅ Audio monitoring for background voices
+
+✅ Red flash overlay warnings for violations
+
+✅ Evidence logging (event log + MP4/WAV clips)
 
 ---
 
 ## 🔮 Planned Improvements
 
-- ⬜ Audio Monitoring → detect background voices or conversations  
-- ⬜ Dataset Expansion → integrate more open datasets to improve CNN generalization  
-- ⬜ Cheat Behavior Scenarios → add detection for mobile phone usage, frequent head tilting, etc.  
-- ⬜ Instructor Dashboard → centralized log and video review system  
-- ⬜ Optional Cloud Sync → store violations securely for remote review  
+⬜ Dataset Expansion → integrate more open datasets to improve CNN generalization
+
+⬜ Cheat Behavior Scenarios → add detection for mobile phone usage, frequent head tilting, etc.
+
+⬜ Instructor Dashboard → centralized log and evidence review system.
+
+⬜ Optional Cloud Sync → store violations securely for remote review. 
 
 ---
+
+👨‍💻 Author
+
+Developed by Vathsal Upadhyay (Vatsy05)
+💡 Built as a college-level AI/ML project to showcase practical application of CNNs, MediaPipe, and real-time proctoring.
