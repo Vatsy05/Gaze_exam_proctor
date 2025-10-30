@@ -4,6 +4,7 @@ from datetime import datetime
 import mediapipe as mp
 from tensorflow.keras.models import load_model
 import sounddevice as sd
+from ultralytics import YOLO   # 🔥 YOLOv8
 
 MODEL_PATH = "gaze_cnn.h5"
 LABELS_FILE = "labels.txt"
@@ -196,6 +197,8 @@ def main():
     except Exception as e:
         print("[Audio] Could not start microphone stream:", e)
 
+    yolo = YOLO("yolov8n.pt")  # pretrained YOLOv8 (COCO dataset)
+
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("Could not open camera.")
@@ -224,19 +227,30 @@ def main():
             break
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
+        # 🔹 YOLO Mobile Phone Detection
+        results = yolo.predict(frame, conf=0.5, verbose=False)
+        for r in results:
+            for box in r.boxes:
+                cls_id = int(box.cls[0])
+                cls_name = r.names[cls_id]
+                if cls_name == "cell phone":
+                    flash_counter = FLASH_DURATION
+                    flash_text = "MOBILE PHONE DETECTED!"
+                    save_evidence_video(list(video_buf), "mobile_phone", fps)
+
+        # 🔹 Multi-Face Detection
         res_det = face_detection.process(rgb)
         face_num = len(res_det.detections) if res_det and res_det.detections else 0
         cv2.putText(frame, f"faces: {face_num}", (10,60),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (180,180,180), 2)
-
         if face_num > 1:
             flash_counter = FLASH_DURATION
             flash_text = "MULTIPLE FACES DETECTED!"
             save_evidence_video(list(video_buf), "multiple_faces", fps)
 
+        # 🔹 FaceMesh Gaze Detection
         res_mesh = face_mesh.process(rgb)
         faces_mesh = res_mesh.multi_face_landmarks if res_mesh and res_mesh.multi_face_landmarks else []
-
         label_disp = "no_face"
         conf_disp = 0.0
 
@@ -312,6 +326,7 @@ def main():
             long_buf.clear(); away_buf.clear(); closed_buf.clear()
             away_start = None; closed_start = None; event_armed = True
 
+        # 🔹 Audio Monitoring
         rms = audio_mon.get_rms()
         rms_bar = min(int(rms * 200), 200)
         cv2.rectangle(frame, (10, frame.shape[0]-20), (10 + rms_bar, frame.shape[0]-10), (255,255,0), -1)
@@ -324,6 +339,7 @@ def main():
             recent = audio_mon.grab_recent_audio(seconds=5.0)
             save_evidence_audio(recent, "audio_activity")
 
+        # 🔹 Display Label
         cv2.putText(frame, f"{label_disp} ({conf_disp:.2f})", (10,30),
                     cv2.FONT_HERSHEY_SIMPLEX, 1,
                     (0,255,0) if label_disp=="center" else (0,255,255), 2)
