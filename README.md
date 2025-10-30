@@ -1,9 +1,9 @@
-# Exam Gaze Proctor 👀
+# Exam Gaze Proctor 
 
 **Exam Gaze Proctor** is an AI-powered system designed to monitor students during online exams.  
-It uses **eye gaze tracking**, **face detection**, and **audio monitoring** to flag potentially suspicious behaviors such as looking away from the screen, keeping eyes closed for too long, the presence of multiple people, or background conversations.  
+It uses **eye gaze tracking**, **face detection**, **audio monitoring**, and **YOLO-based object detection** to flag potentially suspicious behaviors such as looking away, keeping eyes closed for too long, multiple people being present, background voices, or **mobile phone usage**.  
 
-Built with **TensorFlow, OpenCV, MediaPipe, and SoundDevice**, the project demonstrates how deep learning and computer vision can be applied to real-world proctoring scenarios.
+Built with **TensorFlow, OpenCV, MediaPipe, YOLOv8, and sounddevice**, the project demonstrates how deep learning and computer vision can be applied to real-world proctoring scenarios.
 
 ---
 
@@ -40,12 +40,21 @@ Built with **TensorFlow, OpenCV, MediaPipe, and SoundDevice**, the project demon
 ---
 
 ### 🔹 Audio Monitoring
-- Continuously listens through the microphone for **speech or background voices**.  
-- If **sustained voice activity** is detected:  
-  - Red warning overlay is displayed (*VOICE DETECTED!*).  
-  - Event is logged in `events/events.log`.  
-  - A short `.wav` audio clip (~5 seconds) is saved as evidence.  
-- Prevents students from discussing answers out loud or receiving verbal help.
+- Listens to the environment through the microphone.  
+- If **voices or conversations** are detected for more than 1 second:  
+  - Red flash warning (*VOICE DETECTED!*).  
+  - Event is logged with a timestamp.  
+  - A short **.wav audio clip** is saved in the `events/` folder.
+
+---
+
+### 🔹 Mobile Phone Detection (YOLOv8)
+- Integrates **YOLOv8 pretrained model** to detect mobile phones in the webcam feed.  
+- If a **cell phone** is detected:  
+  - Immediate red flash warning (*MOBILE PHONE DETECTED!*).  
+  - Event is logged with a timestamp.  
+  - A short MP4 clip is saved as evidence.  
+- Prevents students from secretly using their phone during the exam.
 
 ---
 
@@ -55,26 +64,18 @@ Built with **TensorFlow, OpenCV, MediaPipe, and SoundDevice**, the project demon
   - *MULTIPLE FACES DETECTED!*  
   - *EYES CLOSED TOO LONG!*  
   - *VOICE DETECTED!*  
+  - *MOBILE PHONE DETECTED!*  
 - Provides **instant feedback** to discourage further misconduct.  
 
 ---
 
 ### 🔹 Evidence Logging
 - Every suspicious event is logged in the `events/` folder.  
-- **Two types of evidence are saved:**  
+- **Evidence types saved:**  
   1. A line in `events.log` with the timestamp and event type.  
-  2. A short **.mp4 video clip** or **.wav audio clip** of the violation.  
+  2. A short **.mp4 video clip** of the violation (5 seconds leading up to the event).  
+  3. For audio events, a **.wav audio clip** is saved.  
 - Ensures instructors can review exactly what happened later.
-
----
-
-### 🔹 Robust Classification
-- **Closed ≠ Away** → closed eyes are treated as a separate class.  
-- Combines:
-  - **Short-term checks** (catch quick closed-eye signals).  
-  - **Ratio-based checks** (e.g., away ≥60% of last frames).  
-  - **Long-term smoothing** (majority vote across ~25 frames).  
-- Results in a system that is stable against natural blinks, quick glances, or small posture changes.
 
 ---
 
@@ -106,17 +107,22 @@ flowchart TD
     D -->|Closed| E3[Closed Eye Timeout Check]
 
     B --> F(Face Detection - Multi-Face)
-    F -->|More than 1 Face| E4[Flag Multiple Faces]
+    F -->|>1 Face| E4[Flag Multiple Faces]
 
     H[Microphone Audio] --> I(Audio Monitor)
-    I -->|Voice Detected| E5[Flag Audio Activity]
+    I -->|Voices Detected| E5[Flag Voice Detected]
 
-    E2 --> G[Red Flash + Log Event]
-    E3 --> G
-    E4 --> G
-    E5 --> G
+    A --> J[YOLOv8 Object Detection]
+    J -->|Cell Phone| E6[Flag Mobile Phone]
 
-    G --> H2[Save MP4/WAV Evidence + events.log]
+    E2 --> K[Red Flash + Log Event]
+    E3 --> K
+    E4 --> K
+    E5 --> K
+    E6 --> K
+
+    K --> L[Save Evidence: MP4 + WAV + Log]
+
 ```
 ---
 
@@ -130,23 +136,25 @@ flowchart TD
 
 ✅ Multi-face detection with warnings
 
-✅ Audio monitoring for background voices
+✅ Audio monitoring & voice detection
+
+✅ Mobile phone detection with YOLOv8
 
 ✅ Red flash overlay warnings for violations
 
-✅ Evidence logging (event log + MP4/WAV clips)
+✅ Evidence logging (event log + MP4 clips + WAV audio)
 
 ---
 
 ## 🔮 Planned Improvements
 
+⬜ Cheat Behavior Scenarios → add detection for frequent head tilting, use of secondary screen, etc.
+
+⬜ Instructor Dashboard → centralized log and video review system
+
+⬜ Optional Cloud Sync → store violations securely for remote review
+
 ⬜ Dataset Expansion → integrate more open datasets to improve CNN generalization
-
-⬜ Cheat Behavior Scenarios → add detection for mobile phone usage, frequent head tilting, etc.
-
-⬜ Instructor Dashboard → centralized log and evidence review system.
-
-⬜ Optional Cloud Sync → store violations securely for remote review. 
 
 ---
 
