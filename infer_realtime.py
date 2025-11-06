@@ -1,10 +1,9 @@
-import os, time, cv2, numpy as np, wave, threading
+import os, time, cv2, numpy as np
 from collections import deque, Counter
 from datetime import datetime
 import mediapipe as mp
 from tensorflow.keras.models import load_model
-import sounddevice as sd
-from ultralytics import YOLO   # 🔥 YOLOv8
+from ultralytics import YOLO  # 🔹 YOLOv8
 
 MODEL_PATH = "gaze_cnn.h5"
 LABELS_FILE = "labels.txt"
@@ -22,14 +21,6 @@ CLOSED_TIMEOUT = 5.0
 VIDEO_BUFFER_SECONDS = 5.0
 FPS_ASSUMED = 20
 FLASH_DURATION = 15
-
-AUDIO_SR = 16000
-AUDIO_BLOCK = 1024
-AUDIO_BUFFER_SECONDS = 6.0
-VOICE_MIN_SECONDS = 1.0
-VOICE_COOLDOWN = 6.0
-VOICE_THRESH_RMS = 0.03
-VOICE_SMOOTH = 8
 
 LOG_DIR = "events"
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -94,20 +85,6 @@ def save_evidence_video(frames, label, fps_est):
         f.write(f"{ts},{label}\n")
     print(f"[EVENT] {ts} - {label} (video saved)")
 
-def save_evidence_audio(samples_int16, label):
-    if samples_int16 is None or len(samples_int16) == 0:
-        return
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    wav_path = os.path.join(LOG_DIR, f"evidence_{label}_{ts}.wav")
-    with wave.open(wav_path, "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(AUDIO_SR)
-        wf.writeframes(samples_int16.tobytes())
-    with open(os.path.join(LOG_DIR, "events.log"), "a") as f:
-        f.write(f"{ts},{label}\n")
-    print(f"[EVENT] {ts} - {label} (audio saved)")
-
 def add_red_flash(frame, text="WARNING!"):
     overlay = frame.copy()
     h, w = frame.shape[:2]
@@ -117,92 +94,13 @@ def add_red_flash(frame, text="WARNING!"):
                 cv2.FONT_HERSHEY_SIMPLEX, 2, (255,255,255), 5)
     return frame
 
-class AudioMonitor:
-    def __init__(self):
-        self.buffer = deque(maxlen=int(AUDIO_SR * AUDIO_BUFFER_SECONDS))
-        self.rms_buf = deque(maxlen=VOICE_SMOOTH)
-        self.lock = threading.Lock()
-        self._speaking = False
-        self._speak_start = None
-        self._last_trigger = 0.0
-        self.just_triggered = False
-        self.running = False
-        self.stream = None
-
-    @staticmethod
-    def _rms_int16(x):
-        if x.size == 0:
-            return 0.0
-        y = x.astype(np.float32) / 32768.0
-        return float(np.sqrt(np.mean(y*y)))
-
-    def _callback(self, indata, frames, time_info, status):
-        samples = indata.copy().ravel().astype(np.int16)
-        with self.lock:
-            self.buffer.extend(samples.tolist())
-        rms = self._rms_int16(samples)
-        self.rms_buf.append(rms)
-        rms_smooth = sum(self.rms_buf)/len(self.rms_buf)
-        now = time.time()
-        if rms_smooth >= VOICE_THRESH_RMS:
-            if not self._speaking:
-                self._speaking = True
-                self._speak_start = now
-            else:
-                dur = now - (self._speak_start or now)
-                if dur >= VOICE_MIN_SECONDS and (now - self._last_trigger) >= VOICE_COOLDOWN:
-                    self.just_triggered = True
-                    self._last_trigger = now
-        else:
-            self._speaking = False
-            self._speak_start = None
-
-    def start(self):
-        if self.running:
-            return
-        self.running = True
-        self.stream = sd.InputStream(
-            channels=1,
-            samplerate=AUDIO_SR,
-            dtype="int16",
-            blocksize=AUDIO_BLOCK,
-            callback=self._callback
-        )
-        self.stream.start()
-
-    def stop(self):
-        if self.stream:
-            self.stream.stop()
-            self.stream.close()
-        self.running = False
-
-    def get_rms(self):
-        if not self.rms_buf:
-            return 0.0
-        return sum(self.rms_buf)/len(self.rms_buf)
-
-    def grab_recent_audio(self, seconds=5.0):
-        with self.lock:
-            n = int(AUDIO_SR * seconds)
-            if len(self.buffer) < 10:
-                return None
-            data = np.array(list(self.buffer)[-n:], dtype=np.int16)
-        return data
-
 def main():
     model = load_model(MODEL_PATH)
-    audio_mon = AudioMonitor()
-    try:
-        audio_mon.start()
-    except Exception as e:
-        print("[Audio] Could not start microphone stream:", e)
-
     yolo = YOLO("yolov8n.pt")  # pretrained YOLOv8 (COCO dataset)
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("Could not open camera.")
-        audio_mon.stop()
         return
 
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -326,19 +224,6 @@ def main():
             long_buf.clear(); away_buf.clear(); closed_buf.clear()
             away_start = None; closed_start = None; event_armed = True
 
-        # 🔹 Audio Monitoring
-        rms = audio_mon.get_rms()
-        rms_bar = min(int(rms * 200), 200)
-        cv2.rectangle(frame, (10, frame.shape[0]-20), (10 + rms_bar, frame.shape[0]-10), (255,255,0), -1)
-        cv2.putText(frame, "audio", (10, frame.shape[0]-30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,0), 1)
-
-        if getattr(audio_mon, "just_triggered", False):
-            audio_mon.just_triggered = False
-            flash_counter = FLASH_DURATION
-            flash_text = "VOICE DETECTED!"
-            recent = audio_mon.grab_recent_audio(seconds=5.0)
-            save_evidence_audio(recent, "audio_activity")
-
         # 🔹 Display Label
         cv2.putText(frame, f"{label_disp} ({conf_disp:.2f})", (10,30),
                     cv2.FONT_HERSHEY_SIMPLEX, 1,
@@ -355,7 +240,6 @@ def main():
 
     cap.release()
     cv2.destroyAllWindows()
-    audio_mon.stop()
 
 if __name__ == "__main__":
     main()
