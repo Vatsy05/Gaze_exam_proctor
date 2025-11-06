@@ -39,15 +39,6 @@ Built with **TensorFlow, OpenCV, MediaPipe, YOLOv8, and sounddevice**, the proje
 
 ---
 
-### 🔹 Audio Monitoring
-- Listens to the environment through the microphone.  
-- If **voices or conversations** are detected for more than 1 second:  
-  - Red flash warning (*VOICE DETECTED!*).  
-  - Event is logged with a timestamp.  
-  - A short **.wav audio clip** is saved in the `events/` folder.
-
----
-
 ### 🔹 Mobile Phone Detection (YOLOv8)
 - Integrates **YOLOv8 pretrained model** to detect mobile phones in the webcam feed.  
 - If a **cell phone** is detected:  
@@ -109,8 +100,7 @@ flowchart TD
     B --> F(Face Detection - Multi-Face)
     F -->|>1 Face| E4[Flag Multiple Faces]
 
-    H[Microphone Audio] --> I(Audio Monitor)
-    I -->|Voices Detected| E5[Flag Voice Detected]
+  
 
     A --> J[YOLOv8 Object Detection]
     J -->|Cell Phone| E6[Flag Mobile Phone]
